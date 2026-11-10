@@ -27,6 +27,8 @@ class ScreenTimeService : Service() {
 
     private lateinit var prefs: Prefs
     private lateinit var overlay: LockOverlay
+    private lateinit var warning: WarningOverlay
+    private lateinit var speaker: Speaker
     private val handler = Handler(Looper.getMainLooper())
 
     /** elapsedRealtime da última contagem; 0 = tela desligada (sem contar). */
@@ -34,6 +36,8 @@ class ScreenTimeService : Service() {
     /** Momento em que o usuário desbloqueou a tela (para dar tempo ao responsável abrir o app). */
     private var userPresentAt = 0L
     private var lastNotificationText = ""
+    /** true quando o responsável pediu para ver a tela de bloqueio como teste. */
+    private var previewing = false
 
     private val tick = object : Runnable {
         override fun run() {
@@ -61,7 +65,12 @@ class ScreenTimeService : Service() {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
-        overlay = LockOverlay(this, prefs) { update() }
+        speaker = Speaker(this)
+        overlay = LockOverlay(this, prefs, speaker) {
+            previewing = false
+            update()
+        }
+        warning = WarningOverlay(this, speaker)
         createChannels()
 
         val notification = buildNotification("Iniciando…")
@@ -90,6 +99,7 @@ class ScreenTimeService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_PREVIEW) previewing = true
         update()
         return START_STICKY
     }
@@ -98,6 +108,8 @@ class ScreenTimeService : Service() {
         handler.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(systemReceiver) }
         overlay.hide()
+        warning.hide()
+        speaker.shutdown()
         super.onDestroy()
     }
 
@@ -127,9 +139,10 @@ class ScreenTimeService : Service() {
         }
 
         val remaining = prefs.remainingSeconds()
-        val blocked = remaining <= 0
+        val blocked = remaining <= 0 || previewing
 
         if (blocked) {
+            warning.hide()
             val shown = overlay.show()
             // Sem permissão de sobreposição (ex.: foi revogada), usa o bloqueio
             // de tela do administrador do dispositivo como alternativa.
@@ -153,10 +166,18 @@ class ScreenTimeService : Service() {
     private fun maybeWarn(remaining: Long) {
         if (remaining == Long.MAX_VALUE) return
         val level = prefs.warnedLevel
-        val text = when {
-            remaining <= 60 && level < 2 -> { prefs.warnedLevel = 2; "Resta 1 minuto de tela hoje." }
-            remaining <= 300 && level < 1 -> { prefs.warnedLevel = 1; "Restam 5 minutos de tela hoje." }
+        val minutes = when {
+            remaining <= 60 && level < 2 -> { prefs.warnedLevel = 2; 1 }
+            remaining <= 300 && level < 1 -> { prefs.warnedLevel = 1; 5 }
             else -> return
+        }
+        val text = if (minutes == 1) "Falta 1 minuto. Depois o celular vai dormir."
+        else "Faltam 5 minutos. Depois o celular vai dormir."
+
+        // Aviso visual em tela cheia (some sozinho em 10 segundos).
+        val total = (prefs.limitSecondsToday() + prefs.bonusSeconds).coerceAtLeast(1)
+        if (getSystemService(PowerManager::class.java).isInteractive) {
+            warning.show(minutes, remaining.toFloat() / total)
         }
         val n = Notification.Builder(this, ALERT_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher)
@@ -215,6 +236,15 @@ class ScreenTimeService : Service() {
         /** Inicia o serviço (ou pede para ele reavaliar o estado, se já estiver rodando). */
         fun start(context: Context) {
             context.startForegroundService(Intent(context, ScreenTimeService::class.java))
+        }
+
+        private const val ACTION_PREVIEW = "br.com.controleparental.PREVIEW"
+
+        /** Mostra a tela de bloqueio agora, como teste (sai com o PIN). */
+        fun preview(context: Context) {
+            context.startForegroundService(
+                Intent(context, ScreenTimeService::class.java).setAction(ACTION_PREVIEW)
+            )
         }
     }
 }

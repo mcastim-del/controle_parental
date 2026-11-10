@@ -79,6 +79,13 @@ class MainActivity : Activity() {
                 )
             })
         }
+        findViewById<Button>(R.id.btnPreview).setOnClickListener {
+            if (!Settings.canDrawOverlays(this)) {
+                toast("Ative primeiro a permissão 1 (sobrepor outros apps)")
+            } else {
+                ScreenTimeService.preview(this)
+            }
+        }
         findViewById<Button>(R.id.btnChangePin).setOnClickListener {
             changingPin = true
             render()
