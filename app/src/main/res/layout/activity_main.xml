@@ -192,6 +192,18 @@
                 android:layout_height="wrap_content"
                 android:text="Salvar limites" />
 
+            <Button
+                android:id="@+id/btnPreview"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Testar tela de bloqueio" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Para sair do teste: segure o cadeado no canto da tela por 3 segundos e digite o PIN. Os botões de tempo extra também somam tempo de verdade."
+                android:textSize="12sp" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
