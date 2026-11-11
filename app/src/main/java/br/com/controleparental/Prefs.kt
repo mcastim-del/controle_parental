@@ -153,6 +153,6 @@ fun formatDuration(seconds: Long): String {
     val s = seconds.coerceAtLeast(0)
     val h = s / 3600
     val m = (s % 3600) / 60
-    if (s in 1..59) return "menos de 1min"
+    if (s in 1L..59L) return "menos de 1min"
     return if (h > 0) "${h}h %02dmin".format(m) else "${m}min"
 }

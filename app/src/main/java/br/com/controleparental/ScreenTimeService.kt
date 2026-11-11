@@ -143,7 +143,7 @@ class ScreenTimeService : Service() {
 
         val remaining = prefs.remainingSeconds()
         val blocked = remaining <= 0 || previewing
-        nextTickMs = if (remaining in 1 until TICK_MS / 1000) remaining * 1000 else TICK_MS
+        nextTickMs = if (remaining in 1L until TICK_MS / 1000) remaining * 1000 else TICK_MS
 
         if (blocked) {
             val shown = overlay.show()

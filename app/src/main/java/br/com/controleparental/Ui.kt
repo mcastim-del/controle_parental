@@ -89,7 +89,7 @@ class Speaker(context: Context) {
     }
 
     init {
-        runCatching { tts.language = Locale("pt", "BR") }
+        runCatching { tts.setLanguage(Locale("pt", "BR")) }
         runCatching { tts.setSpeechRate(0.85f) } // um pouco mais devagar, mais fácil de entender
     }
 
@@ -99,7 +99,7 @@ class Speaker(context: Context) {
             return
         }
         runCatching {
-            tts.language = Locale("pt", "BR")
+            tts.setLanguage(Locale("pt", "BR"))
             tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "cp")
         }
     }
