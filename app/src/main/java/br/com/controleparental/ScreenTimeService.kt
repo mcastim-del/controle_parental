@@ -37,8 +37,6 @@ class ScreenTimeService : Service() {
     private var lastNotificationText = ""
     /** Próxima contagem: a cada 5 s, ou antes se o tempo acabar antes disso (bloqueio na hora certa). */
     private var nextTickMs = TICK_MS
-    /** true quando o responsável pediu para ver a tela de bloqueio como teste. */
-    private var previewing = false
 
     private val tick = object : Runnable {
         override fun run() {
@@ -69,7 +67,6 @@ class ScreenTimeService : Service() {
         speaker = Speaker(this)
         overlay = LockOverlay(this, prefs, speaker) {
             previewing = false
-            overlay.previewMode = false
             update()
         }
         createChannels()
@@ -100,10 +97,7 @@ class ScreenTimeService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_PREVIEW) {
-            previewing = true
-            overlay.previewMode = true
-        }
+        if (intent?.action == ACTION_PREVIEW) previewing = true
         update()
         return START_STICKY
     }
@@ -213,6 +207,10 @@ class ScreenTimeService : Service() {
         }
 
         private const val ACTION_PREVIEW = "br.com.controleparental.PREVIEW"
+
+        /** true quando o responsável pediu para ver a tela de bloqueio como teste. */
+        @Volatile
+        var previewing = false
 
         /** Mostra a tela de bloqueio agora, como teste (sai com o PIN). */
         fun preview(context: Context) {
