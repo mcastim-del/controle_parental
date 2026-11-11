@@ -201,7 +201,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Para sair do teste: segure "Responsável: segure 3 segundos", no fim da tela, digite o PIN e toque em Sair do teste."
+                android:text="Para sair do teste: no fim da tela, segure o cadeado (Responsável) por 3 segundos, digite o PIN e toque em Sair do teste."
                 android:textSize="12sp" />
 
             <TextView
