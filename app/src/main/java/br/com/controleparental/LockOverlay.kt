@@ -62,6 +62,9 @@ class LockOverlay(
 
     val isShowing: Boolean get() = root != null
 
+    /** true quando a tela foi aberta pelo botão "Testar tela de bloqueio". */
+    var previewMode = false
+
     /** Mostra o bloqueio. Retorna false se não houver permissão de sobreposição. */
     fun show(): Boolean {
         if (root != null) return true
@@ -142,8 +145,9 @@ class LockOverlay(
         col.addView(grid, matchWidth().withTopMargin(12))
 
         col.addView(listenButton { speaker.speak(mainSentence) }.withTop(20))
+        col.addView(lockButton().withTop(28))
 
-        setContent(col, withLock = true)
+        setContent(col)
         if (speak) speaker.speak(mainSentence)
     }
 
@@ -175,8 +179,9 @@ class LockOverlay(
             isAllCaps = false
             setOnClickListener { showChildScreen(speak = false) }
         }.withTop(28))
+        col.addView(lockButton().withTop(28))
 
-        setContent(col, withLock = true)
+        setContent(col)
         startBreathing(inner, label)
         speaker.speak("${act.title}. Boa escolha. ${act.hint}")
     }
@@ -249,6 +254,40 @@ class LockOverlay(
             pin.setText("")
         }
 
+        if (previewMode) {
+            // No teste, sair não dá tempo extra: só fecha a tela.
+            col.addView(Button(themed).apply {
+                text = "Sair do teste"
+                isAllCaps = false
+                setOnClickListener {
+                    when (val r = prefs.checkPin(pin.text.toString())) {
+                        is PinCheck.Ok -> {
+                            context.getSystemService(InputMethodManager::class.java)
+                                .hideSoftInputFromWindow(pin.windowToken, 0)
+                            onUnlocked()
+                            // Se o tempo de verdade também acabou, a tela continua:
+                            // mostra a área normal do responsável, com os botões de tempo extra.
+                            if (root != null) showParentScreen()
+                        }
+                        is PinCheck.Wrong -> status.text = "PIN incorreto. Tentativas restantes: ${r.attemptsLeft}"
+                        is PinCheck.Locked -> status.text = "Muitas tentativas. Aguarde ${r.seconds} segundos."
+                    }
+                    pin.setText("")
+                }
+            }.withTop(12))
+            col.addView(Button(themed).apply {
+                text = "Voltar"
+                isAllCaps = false
+                setOnClickListener {
+                    context.getSystemService(InputMethodManager::class.java)
+                        .hideSoftInputFromWindow(pin.windowToken, 0)
+                    showChildScreen(speak = false)
+                }
+            }.withTop(16))
+            setContent(col)
+            return
+        }
+
         val row = LinearLayout(themed).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -276,19 +315,27 @@ class LockOverlay(
             }
         }.withTop(16))
 
-        setContent(col, withLock = false)
+        setContent(col)
     }
 
-    /** Cadeado pequeno no canto: só abre a área do responsável se for segurado por 3 segundos. */
+    /**
+     * Cadeado discreto no fim da tela: só abre a área do responsável se for segurado por 3 segundos.
+     * Fica dentro do conteúdo (longe da barra de status) para o toque não abrir a cortina de notificações.
+     */
     @SuppressLint("ClickableViewAccessibility")
-    private fun lockButton(): View = ui.text(themed, "🔒", 16f).apply {
-        alpha = 0.45f
-        setPadding(ui.dp(16), ui.dp(16), ui.dp(16), ui.dp(16))
+    private fun lockButton(): TextView = ui.text(themed, "🔒  Responsável: segure 3 segundos", 13f, Palette.MUTED).apply {
+        setPadding(ui.dp(20), ui.dp(14), ui.dp(20), ui.dp(14))
         val open = Runnable { showParentScreen() }
-        setOnTouchListener { _, ev ->
+        setOnTouchListener { v, ev ->
             when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> handler.postDelayed(open, 3000)
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> handler.removeCallbacks(open)
+                MotionEvent.ACTION_DOWN -> {
+                    v.alpha = 0.5f
+                    handler.postDelayed(open, 3000)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.alpha = 1f
+                    handler.removeCallbacks(open)
+                }
             }
             true
         }
@@ -301,10 +348,10 @@ class LockOverlay(
     private fun column() = LinearLayout(themed).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
-        setPadding(ui.dp(24), ui.dp(40), ui.dp(24), ui.dp(32))
+        setPadding(ui.dp(24), ui.dp(56), ui.dp(24), ui.dp(72))
     }
 
-    private fun setContent(content: LinearLayout, withLock: Boolean) {
+    private fun setContent(content: LinearLayout) {
         val frame = root ?: return
         frame.removeAllViews()
         val scroll = ScrollView(themed).apply {
@@ -312,9 +359,6 @@ class LockOverlay(
             addView(content, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         }
         frame.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        if (withLock) {
-            frame.addView(lockButton(), FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.TOP or Gravity.END))
-        }
     }
 
     private fun step(emoji: String, label: String, bg: Int, fg: Int) = LinearLayout(themed).apply {

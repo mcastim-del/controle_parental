@@ -154,13 +154,17 @@ class MainActivity : Activity() {
     private fun usageText(): String {
         prefs.ensureToday()
         val used = formatDuration(prefs.usedSeconds)
+        val which = if (prefs.isWeekendToday()) "sábado e domingo" else "segunda a sexta"
+        val limitLine = "\nLimite de hoje: ${formatDuration(prefs.limitSecondsToday())} ($which)" +
+            (if (prefs.bonusSeconds > 0) " + extra liberado" else "") +
+            "\nO tempo só conta com a tela ligada."
         return when {
             !prefs.enabled -> "Usado hoje: $used • controle desativado"
             prefs.unlimitedToday -> "Usado hoje: $used • sem limite hoje"
             else -> {
                 val remaining = prefs.remainingSeconds()
-                if (remaining <= 0) "Usado hoje: $used • tempo esgotado"
-                else "Usado hoje: $used • restam ${formatDuration(remaining)}"
+                if (remaining <= 0) "Usado hoje: $used • tempo esgotado$limitLine"
+                else "Usado hoje: $used • restam ${formatDuration(remaining)}$limitLine"
             }
         }
     }
@@ -180,7 +184,7 @@ class MainActivity : Activity() {
         val admin = getSystemService(DevicePolicyManager::class.java).isAdminActive(adminComponent())
         findViewById<TextView>(R.id.txtPermissions).text = """
             ${mark(overlay)} Sobrepor outros apps (obrigatório para bloquear a tela)
-            ${mark(notifications)} Notificações (avisos de 5 e 1 minuto)
+            ${mark(notifications)} Notificações (mostra o tempo restante)
             ${mark(battery)} Sem otimização de bateria (evita que o sistema pare a contagem)
             ${mark(admin)} Proteção contra desinstalação
         """.trimIndent()

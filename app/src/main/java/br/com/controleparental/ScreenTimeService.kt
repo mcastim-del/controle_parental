@@ -27,7 +27,6 @@ class ScreenTimeService : Service() {
 
     private lateinit var prefs: Prefs
     private lateinit var overlay: LockOverlay
-    private lateinit var warning: WarningOverlay
     private lateinit var speaker: Speaker
     private val handler = Handler(Looper.getMainLooper())
 
@@ -36,13 +35,15 @@ class ScreenTimeService : Service() {
     /** Momento em que o usuário desbloqueou a tela (para dar tempo ao responsável abrir o app). */
     private var userPresentAt = 0L
     private var lastNotificationText = ""
+    /** Próxima contagem: a cada 5 s, ou antes se o tempo acabar antes disso (bloqueio na hora certa). */
+    private var nextTickMs = TICK_MS
     /** true quando o responsável pediu para ver a tela de bloqueio como teste. */
     private var previewing = false
 
     private val tick = object : Runnable {
         override fun run() {
             update()
-            handler.postDelayed(this, TICK_MS)
+            handler.postDelayed(this, nextTickMs)
         }
     }
 
@@ -68,9 +69,9 @@ class ScreenTimeService : Service() {
         speaker = Speaker(this)
         overlay = LockOverlay(this, prefs, speaker) {
             previewing = false
+            overlay.previewMode = false
             update()
         }
-        warning = WarningOverlay(this, speaker)
         createChannels()
 
         val notification = buildNotification("Iniciando…")
@@ -99,7 +100,10 @@ class ScreenTimeService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_PREVIEW) previewing = true
+        if (intent?.action == ACTION_PREVIEW) {
+            previewing = true
+            overlay.previewMode = true
+        }
         update()
         return START_STICKY
     }
@@ -108,7 +112,6 @@ class ScreenTimeService : Service() {
         handler.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(systemReceiver) }
         overlay.hide()
-        warning.hide()
         speaker.shutdown()
         super.onDestroy()
     }
@@ -140,16 +143,15 @@ class ScreenTimeService : Service() {
 
         val remaining = prefs.remainingSeconds()
         val blocked = remaining <= 0 || previewing
+        nextTickMs = if (remaining in 1 until TICK_MS / 1000) remaining * 1000 else TICK_MS
 
         if (blocked) {
-            warning.hide()
             val shown = overlay.show()
             // Sem permissão de sobreposição (ex.: foi revogada), usa o bloqueio
             // de tela do administrador do dispositivo como alternativa.
             if (!shown && lastTick != 0L) lockWithDeviceAdmin()
         } else {
             overlay.hide()
-            maybeWarn(remaining)
         }
         updateNotification(remaining, blocked)
     }
@@ -161,31 +163,6 @@ class ScreenTimeService : Service() {
         val dpm = getSystemService(DevicePolicyManager::class.java)
         val admin = ComponentName(this, AdminReceiver::class.java)
         if (dpm.isAdminActive(admin)) runCatching { dpm.lockNow() }
-    }
-
-    private fun maybeWarn(remaining: Long) {
-        if (remaining == Long.MAX_VALUE) return
-        val level = prefs.warnedLevel
-        val minutes = when {
-            remaining <= 60 && level < 2 -> { prefs.warnedLevel = 2; 1 }
-            remaining <= 300 && level < 1 -> { prefs.warnedLevel = 1; 5 }
-            else -> return
-        }
-        val text = if (minutes == 1) "Falta 1 minuto. Depois o celular vai dormir."
-        else "Faltam 5 minutos. Depois o celular vai dormir."
-
-        // Aviso visual em tela cheia (some sozinho em 10 segundos).
-        val total = (prefs.limitSecondsToday() + prefs.bonusSeconds).coerceAtLeast(1)
-        if (getSystemService(PowerManager::class.java).isInteractive) {
-            warning.show(minutes, remaining.toFloat() / total)
-        }
-        val n = Notification.Builder(this, ALERT_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle("Tempo de tela quase acabando")
-            .setContentText(text)
-            .setAutoCancel(true)
-            .build()
-        getSystemService(NotificationManager::class.java).notify(WARN_ID, n)
     }
 
     private fun updateNotification(remaining: Long, blocked: Boolean) {
@@ -220,16 +197,13 @@ class ScreenTimeService : Service() {
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Tempo de tela restante", NotificationManager.IMPORTANCE_LOW)
         )
-        nm.createNotificationChannel(
-            NotificationChannel(ALERT_CHANNEL_ID, "Avisos de fim de tempo", NotificationManager.IMPORTANCE_HIGH)
-        )
+        // Sem avisos antes do fim do tempo: o bloqueio acontece direto.
+        runCatching { nm.deleteNotificationChannel("screen_time_alerts") }
     }
 
     companion object {
         private const val CHANNEL_ID = "screen_time"
-        private const val ALERT_CHANNEL_ID = "screen_time_alerts"
         private const val NOTIF_ID = 1
-        private const val WARN_ID = 2
         private const val TICK_MS = 5_000L
         private const val ADMIN_GRACE_MS = 20_000L
 

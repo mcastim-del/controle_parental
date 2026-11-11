@@ -64,11 +64,13 @@ class Prefs(context: Context) {
         return true
     }
 
-    fun limitSecondsToday(): Long {
+    fun isWeekendToday(): Boolean {
         val day = LocalDate.now().dayOfWeek
-        val weekend = day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY
-        return (if (weekend) weekendLimitMin else weekdayLimitMin) * 60L
+        return day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY
     }
+
+    fun limitSecondsToday(): Long =
+        (if (isWeekendToday()) weekendLimitMin else weekdayLimitMin) * 60L
 
     /** Segundos restantes hoje (Long.MAX_VALUE quando não há limite). */
     fun remainingSeconds(): Long =
@@ -151,5 +153,6 @@ fun formatDuration(seconds: Long): String {
     val s = seconds.coerceAtLeast(0)
     val h = s / 3600
     val m = (s % 3600) / 60
+    if (s in 1..59) return "menos de 1min"
     return if (h > 0) "${h}h %02dmin".format(m) else "${m}min"
 }
