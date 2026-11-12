@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Controle Parental</string>
-    <string name="accessibility_description">Mantém a contagem do tempo de tela sempre ativa, mesmo quando o celular tenta fechar o Controle Parental. Este app não lê nem guarda nada do que aparece na tela.</string>
 </resources>
