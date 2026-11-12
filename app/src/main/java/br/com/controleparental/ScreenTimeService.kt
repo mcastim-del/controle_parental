@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.app.KeyguardManager
 import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -28,6 +29,7 @@ class ScreenTimeService : Service() {
     private lateinit var prefs: Prefs
     private lateinit var overlay: LockOverlay
     private lateinit var speaker: Speaker
+    private lateinit var sound: SoundBlocker
     private val handler = Handler(Looper.getMainLooper())
 
     /** elapsedRealtime da última contagem; 0 = tela desligada (sem contar). */
@@ -65,6 +67,7 @@ class ScreenTimeService : Service() {
         super.onCreate()
         prefs = Prefs(this)
         speaker = Speaker(this)
+        sound = SoundBlocker(this)
         overlay = LockOverlay(this, prefs, speaker) {
             previewing = false
             update()
@@ -106,33 +109,52 @@ class ScreenTimeService : Service() {
         handler.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(systemReceiver) }
         overlay.hide()
+        sound.release()
         speaker.shutdown()
         super.onDestroy()
     }
 
+    /** Tela ligada: verifica a cada poucos segundos se o celular está em uso. */
     private fun startCounting() {
-        if (lastTick == 0L) lastTick = SystemClock.elapsedRealtime()
         handler.removeCallbacks(tick)
         handler.post(tick)
     }
 
+    /** Tela desligada (stand by): fecha a conta até agora e para. */
     private fun stopCounting() {
         update()
         lastTick = 0L
         handler.removeCallbacks(tick)
     }
 
+    /**
+     * Conta enquanto a tela está ligada e o celular está desbloqueado,
+     * mesmo que ninguém esteja tocando nela. Para quando a tela apaga
+     * ou quando a tela de bloqueio do próprio celular (senha/digital) está aparecendo.
+     */
+    private fun isScreenInUse(): Boolean {
+        val interactive = getSystemService(PowerManager::class.java).isInteractive
+        val locked = getSystemService(KeyguardManager::class.java).isKeyguardLocked
+        return interactive && !locked
+    }
+
     private fun update() {
         prefs.ensureToday()
 
-        // Acumula o tempo de tela ligada desde a última contagem.
+        // Acumula o tempo de tela em uso desde a última contagem.
+        val now = SystemClock.elapsedRealtime()
         if (lastTick != 0L) {
-            val now = SystemClock.elapsedRealtime()
             val secs = (now - lastTick) / 1000
             if (secs > 0) {
                 lastTick += secs * 1000
                 if (prefs.enabled && !prefs.unlimitedToday) prefs.usedSeconds += secs
             }
+        }
+        // Começa/continua a contar só com a tela ligada e o celular desbloqueado.
+        if (isScreenInUse()) {
+            if (lastTick == 0L) lastTick = now
+        } else {
+            lastTick = 0L
         }
 
         val remaining = prefs.remainingSeconds()
@@ -140,12 +162,14 @@ class ScreenTimeService : Service() {
         nextTickMs = if (remaining in 1L until TICK_MS / 1000) remaining * 1000 else TICK_MS
 
         if (blocked) {
+            sound.block()
             val shown = overlay.show()
             // Sem permissão de sobreposição (ex.: foi revogada), usa o bloqueio
             // de tela do administrador do dispositivo como alternativa.
             if (!shown && lastTick != 0L) lockWithDeviceAdmin()
         } else {
             overlay.hide()
+            sound.release()
         }
         updateNotification(remaining, blocked)
     }

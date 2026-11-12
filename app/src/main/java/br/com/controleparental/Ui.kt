@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioAttributes
+import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.view.Gravity
 import android.widget.FrameLayout
@@ -91,6 +93,15 @@ class Speaker(context: Context) {
     init {
         runCatching { tts.setLanguage(Locale("pt", "BR")) }
         runCatching { tts.setSpeechRate(0.85f) } // um pouco mais devagar, mais fácil de entender
+        // A voz usa o canal de alarme: o volume de mídia fica mutado durante o bloqueio.
+        runCatching {
+            tts.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+        }
     }
 
     fun speak(text: String) {
@@ -100,7 +111,8 @@ class Speaker(context: Context) {
         }
         runCatching {
             tts.setLanguage(Locale("pt", "BR"))
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "cp")
+            val params = Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 0.6f) }
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, params, "cp")
         }
     }
 
