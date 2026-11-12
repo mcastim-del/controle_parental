@@ -147,7 +147,8 @@ class ScreenTimeService : Service() {
             val secs = (now - lastTick) / 1000
             if (secs > 0) {
                 lastTick += secs * 1000
-                if (prefs.enabled && !prefs.unlimitedToday) prefs.usedSeconds += secs
+                // Com o bloqueio na tela, o tempo não é somado ao uso do dia.
+                if (prefs.enabled && !prefs.unlimitedToday && !overlay.isShowing) prefs.usedSeconds += secs
             }
         }
         // Começa/continua a contar só com a tela ligada e o celular desbloqueado.

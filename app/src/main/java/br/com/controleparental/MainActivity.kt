@@ -239,9 +239,12 @@ class MainActivity : Activity() {
         }
         prefs.weekdayLimitMin = weekday
         prefs.weekendLimitMin = weekend
+        // Um limite novo vale como está: apaga tempo extra ou "liberar o resto do dia" de hoje.
+        prefs.bonusSeconds = 0
+        prefs.unlimitedToday = false
         prefs.warnedLevel = 0
         ScreenTimeService.start(this)
-        toast("Limites salvos")
+        toast("Limites salvos (tempo extra de hoje removido)")
         renderUsage()
     }
 
