@@ -80,6 +80,7 @@ class ScreenTimeService : Service() {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
+        running = true
         Diag.log(this, "Serviço INICIADO")
         speaker = Speaker(this)
         sound = SoundBlocker(this)
@@ -111,6 +112,14 @@ class ScreenTimeService : Service() {
         }
 
         userPresentAt = SystemClock.elapsedRealtime()
+        // Se o sistema encerrou o serviço há pouco com a tela em uso, retoma a
+        // contagem de onde parou (para o tempo parado não ficar de fora).
+        val saved = tickPrefs().getLong(K_LAST_TICK, 0L)
+        val gap = SystemClock.elapsedRealtime() - saved
+        if (saved != 0L && gap in 0L..RESUME_MAX_MS && isScreenInUse()) {
+            lastTick = saved
+            Diag.log(this, "Retomando contagem (parado por ${gap / 1000}s)")
+        }
         if (getSystemService(PowerManager::class.java).isInteractive) startCounting() else update()
     }
 
@@ -124,6 +133,7 @@ class ScreenTimeService : Service() {
     }
 
     override fun onDestroy() {
+        running = false
         Diag.log(this, "Serviço PARADO")
         handler.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(systemReceiver) }
@@ -143,6 +153,7 @@ class ScreenTimeService : Service() {
     private fun stopCounting() {
         update()
         lastTick = 0L
+        saveLastTick()
         handler.removeCallbacks(tick)
     }
 
@@ -184,6 +195,7 @@ class ScreenTimeService : Service() {
         } else {
             lastTick = 0L
         }
+        saveLastTick()
 
         val remaining = prefs.remainingSeconds()
         val blocked = remaining <= 0 || previewing
@@ -217,6 +229,17 @@ class ScreenTimeService : Service() {
             sound.release()
         }
         updateNotification(remaining, blocked)
+    }
+
+    private fun tickPrefs() = getSharedPreferences("controle_parental_tick", Context.MODE_PRIVATE)
+
+    private var savedTick = -1L
+
+    /** Guarda o ponto da contagem, para retomar se o sistema reiniciar o serviço. */
+    private fun saveLastTick() {
+        if (lastTick == savedTick) return
+        savedTick = lastTick
+        tickPrefs().edit().putLong(K_LAST_TICK, lastTick).apply()
     }
 
     private fun lockWithDeviceAdmin() {
@@ -269,6 +292,13 @@ class ScreenTimeService : Service() {
         private const val NOTIF_ID = 1
         private const val TICK_MS = 5_000L
         private const val ADMIN_GRACE_MS = 20_000L
+        private const val K_LAST_TICK = "last_tick"
+        /** Retoma no máximo 2 min de tempo parado (o vigia reinicia em poucos segundos). */
+        private const val RESUME_MAX_MS = 120_000L
+
+        /** true enquanto o serviço de contagem está rodando (usado pelo vigia). */
+        @Volatile
+        var running = false
 
         /** Inicia o serviço (ou pede para ele reavaliar o estado, se já estiver rodando). */
         fun start(context: Context) {
