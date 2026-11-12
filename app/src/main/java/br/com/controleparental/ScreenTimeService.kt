@@ -121,6 +121,7 @@ class ScreenTimeService : Service() {
             Diag.log(this, "Retomando contagem (parado por ${gap / 1000}s)")
         }
         if (getSystemService(PowerManager::class.java).isInteractive) startCounting() else update()
+        WatchdogReceiver.schedule(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -135,6 +136,8 @@ class ScreenTimeService : Service() {
     override fun onDestroy() {
         running = false
         Diag.log(this, "Serviço PARADO")
+        // Se o sistema parou o serviço, o vigia tenta reiniciar em poucos segundos.
+        WatchdogReceiver.schedule(this, 5_000L)
         handler.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(systemReceiver) }
         overlay.hide()
@@ -293,7 +296,7 @@ class ScreenTimeService : Service() {
         private const val TICK_MS = 5_000L
         private const val ADMIN_GRACE_MS = 20_000L
         private const val K_LAST_TICK = "last_tick"
-        /** Retoma no máximo 2 min de tempo parado (o vigia reinicia em poucos segundos). */
+        /** Retoma no máximo 2 min de tempo parado (o vigia reinicia em até 1 minuto). */
         private const val RESUME_MAX_MS = 120_000L
 
         /** true enquanto o serviço de contagem está rodando (usado pelo vigia). */

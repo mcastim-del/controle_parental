@@ -81,10 +81,6 @@ class MainActivity : Activity() {
                 )
             })
         }
-        findViewById<Button>(R.id.btnAccessibility).setOnClickListener {
-            toast("Toque em Controle Parental (proteção) e ative")
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        }
         findViewById<Button>(R.id.btnPreview).setOnClickListener {
             if (!Settings.canDrawOverlays(this)) {
                 toast("Ative primeiro a permissão 1 (sobrepor outros apps)")
@@ -202,13 +198,11 @@ class MainActivity : Activity() {
         val notifications = getSystemService(NotificationManager::class.java).areNotificationsEnabled()
         val battery = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
         val admin = getSystemService(DevicePolicyManager::class.java).isAdminActive(adminComponent())
-        val keepAlive = KeepAliveService.isEnabled(this)
         findViewById<TextView>(R.id.txtPermissions).text = """
             ${mark(overlay)} Sobrepor outros apps (obrigatório para bloquear a tela)
             ${mark(notifications)} Notificações (mostra o tempo restante)
             ${mark(battery)} Sem otimização de bateria (evita que o sistema pare a contagem)
             ${mark(admin)} Proteção contra desinstalação
-            ${mark(keepAlive)} Acessibilidade (impede que o celular pare a contagem)
         """.trimIndent()
     }
 
