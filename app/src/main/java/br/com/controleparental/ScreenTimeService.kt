@@ -37,6 +37,10 @@ class ScreenTimeService : Service() {
     /** Momento em que o usuário desbloqueou a tela (para dar tempo ao responsável abrir o app). */
     private var userPresentAt = 0L
     private var lastNotificationText = ""
+    // Estado anterior, para o diagnóstico registrar só as mudanças.
+    private var lastInUse: Boolean? = null
+    private var lastBlocked: Boolean? = null
+    private var lastSummaryAt = 0L
     /** Próxima contagem: a cada 5 s, ou antes se o tempo acabar antes disso (bloqueio na hora certa). */
     private var nextTickMs = TICK_MS
 
@@ -50,13 +54,23 @@ class ScreenTimeService : Service() {
     private val systemReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SCREEN_ON -> startCounting()
-                Intent.ACTION_SCREEN_OFF -> stopCounting()
+                Intent.ACTION_SCREEN_ON -> {
+                    Diag.log(context, "Tela LIGOU")
+                    startCounting()
+                }
+                Intent.ACTION_SCREEN_OFF -> {
+                    Diag.log(context, "Tela DESLIGOU")
+                    stopCounting()
+                }
                 Intent.ACTION_USER_PRESENT -> {
+                    Diag.log(context, "Celular DESBLOQUEADO")
                     userPresentAt = SystemClock.elapsedRealtime()
                     update()
                 }
-                else -> update() // data/hora/fuso alterados
+                else -> {
+                    Diag.log(context, "Data/hora mudou")
+                    update()
+                }
             }
         }
     }
@@ -66,6 +80,7 @@ class ScreenTimeService : Service() {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
+        Diag.log(this, "Serviço INICIADO")
         speaker = Speaker(this)
         sound = SoundBlocker(this)
         overlay = LockOverlay(this, prefs, speaker) {
@@ -100,12 +115,16 @@ class ScreenTimeService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_PREVIEW) previewing = true
+        if (intent?.action == ACTION_PREVIEW) {
+            previewing = true
+            Diag.log(this, "Teste da tela de bloqueio")
+        }
         update()
         return START_STICKY
     }
 
     override fun onDestroy() {
+        Diag.log(this, "Serviço PARADO")
         handler.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(systemReceiver) }
         overlay.hide()
@@ -145,6 +164,7 @@ class ScreenTimeService : Service() {
         val now = SystemClock.elapsedRealtime()
         if (lastTick != 0L) {
             val secs = (now - lastTick) / 1000
+            if (secs > 15) Diag.log(this, "Intervalo longo sem contagem: ${secs}s")
             if (secs > 0) {
                 lastTick += secs * 1000
                 // Com o bloqueio na tela, o tempo não é somado ao uso do dia.
@@ -152,7 +172,14 @@ class ScreenTimeService : Service() {
             }
         }
         // Começa/continua a contar só com a tela ligada e o celular desbloqueado.
-        if (isScreenInUse()) {
+        val inUse = isScreenInUse()
+        if (inUse != lastInUse) {
+            lastInUse = inUse
+            val interactive = getSystemService(PowerManager::class.java).isInteractive
+            val locked = getSystemService(KeyguardManager::class.java).isKeyguardLocked
+            Diag.log(this, "Contando: ${if (inUse) "SIM" else "NAO"} (tela ligada=$interactive, bloqueio do celular=$locked)")
+        }
+        if (inUse) {
             if (lastTick == 0L) lastTick = now
         } else {
             lastTick = 0L
@@ -162,9 +189,26 @@ class ScreenTimeService : Service() {
         val blocked = remaining <= 0 || previewing
         nextTickMs = if (remaining in 1L until TICK_MS / 1000) remaining * 1000 else TICK_MS
 
+        if (now - lastSummaryAt >= 30_000) {
+            lastSummaryAt = now
+            val rest = if (remaining == Long.MAX_VALUE) "sem limite" else "${remaining}s"
+            Diag.log(
+                this,
+                "Uso=${prefs.usedSeconds}s limite=${prefs.limitSecondsToday()}s extra=${prefs.bonusSeconds}s " +
+                    "liberadoHoje=${prefs.unlimitedToday} ativado=${prefs.enabled} restam=$rest"
+            )
+        }
+        if (blocked != lastBlocked) {
+            lastBlocked = blocked
+            val rest = if (remaining == Long.MAX_VALUE) "sem limite" else "${remaining}s"
+            Diag.log(this, if (blocked) "TEMPO ESGOTADO (uso=${prefs.usedSeconds}s)" else "Liberado (restam=$rest)")
+        }
+
         if (blocked) {
             sound.block()
+            val wasShowing = overlay.isShowing
             val shown = overlay.show()
+            if (!wasShowing) Diag.log(this, "Tela de bloqueio mostrada: ${if (shown) "SIM" else "NAO (sem permissao de sobrepor?)"}")
             // Sem permissão de sobreposição (ex.: foi revogada), usa o bloqueio
             // de tela do administrador do dispositivo como alternativa.
             if (!shown && lastTick != 0L) lockWithDeviceAdmin()

@@ -47,11 +47,13 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.btnSave).setOnClickListener { saveLimits() }
         findViewById<Button>(R.id.btnExtra30).setOnClickListener {
             prefs.grantExtra(30 * 60L)
+            Diag.log(this, "Responsavel: +30 min")
             ScreenTimeService.start(this)
             toast("+30 minutos liberados para hoje")
         }
         findViewById<Button>(R.id.btnResetToday).setOnClickListener {
             prefs.resetToday()
+            Diag.log(this, "Responsavel: Zerar hoje")
             ScreenTimeService.start(this)
             toast("Tempo de hoje zerado")
         }
@@ -85,6 +87,20 @@ class MainActivity : Activity() {
             } else {
                 ScreenTimeService.preview(this)
             }
+        }
+        findViewById<Button>(R.id.btnDiag).setOnClickListener {
+            val view = findViewById<TextView>(R.id.txtDiag)
+            if (view.visibility == View.VISIBLE) {
+                view.visibility = View.GONE
+            } else {
+                view.text = Diag.read(this)
+                view.visibility = View.VISIBLE
+            }
+        }
+        findViewById<Button>(R.id.btnDiagClear).setOnClickListener {
+            Diag.clear(this)
+            findViewById<TextView>(R.id.txtDiag).text = Diag.read(this)
+            toast("Diagnóstico apagado")
         }
         findViewById<Button>(R.id.btnChangePin).setOnClickListener {
             changingPin = true
@@ -243,6 +259,7 @@ class MainActivity : Activity() {
         prefs.bonusSeconds = 0
         prefs.unlimitedToday = false
         prefs.warnedLevel = 0
+        Diag.log(this, "Responsavel: limites salvos (semana=${weekday}min, fim de semana=${weekend}min)")
         ScreenTimeService.start(this)
         toast("Limites salvos (tempo extra de hoje removido)")
         renderUsage()

@@ -241,6 +241,11 @@ class LockOverlay(
                 is PinCheck.Ok -> {
                     if (extraSeconds == null) prefs.unlimitedToday = true
                     else prefs.grantExtra(extraSeconds)
+                    Diag.log(
+                        context,
+                        if (extraSeconds == null) "Responsavel na tela de bloqueio: liberou o resto do dia"
+                        else "Responsavel na tela de bloqueio: +${extraSeconds / 60} min"
+                    )
                     context.getSystemService(InputMethodManager::class.java)
                         .hideSoftInputFromWindow(pin.windowToken, 0)
                     onUnlocked()
