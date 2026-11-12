@@ -243,6 +243,12 @@
                 android:layout_height="wrap_content"
                 android:text="4. Proteger contra desinstalação" />
 
+            <Button
+                android:id="@+id/btnAccessibility"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="5. Ativar proteção na Acessibilidade" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
