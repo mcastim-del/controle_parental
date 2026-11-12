@@ -251,6 +251,35 @@
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="Diagnóstico"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnDiag"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Ver diagnóstico" />
+
+            <Button
+                android:id="@+id/btnDiagClear"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Apagar diagnóstico" />
+
+            <TextView
+                android:id="@+id/txtDiag"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textIsSelectable="true"
+                android:textSize="11sp"
+                android:visibility="gone" />
+
             <Button
                 android:id="@+id/btnChangePin"
                 android:layout_width="match_parent"
