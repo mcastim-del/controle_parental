@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
 
     <application
         android:allowBackup="false"
@@ -35,18 +39,9 @@
                 android:value="Controle parental: contagem e limite do tempo de tela diário" />
         </service>
 
-        <service
-            android:name=".KeepAliveService"
-            android:exported="true"
-            android:label="Controle Parental (proteção)"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_config" />
-        </service>
+        <receiver
+            android:name=".WatchdogReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".BootReceiver"
